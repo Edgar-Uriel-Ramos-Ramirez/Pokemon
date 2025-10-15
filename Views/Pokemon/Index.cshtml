@@ -1,0 +1,159 @@
+﻿@model IEnumerable<Pokemon.Models.PokemonSummary>
+@{
+  Layout = "_Layout";
+  var page = ViewBag.Page as int? ?? 1;
+  var pageSize = ViewBag.PageSize as int? ?? 20;
+  var total = ViewBag.Total as int? ?? 0;
+
+  int totalPages = (int)Math.Ceiling((decimal)total / pageSize);
+
+  // Calculamos el rango de páginas a mostrar
+  int maxVisiblePages = 20;
+  int startPage = Math.Max(1, page - maxVisiblePages / 2);
+
+  // Ajuste si estamos cerca del inicio
+  if (startPage + maxVisiblePages - 1 > totalPages) startPage = Math.Max(1, totalPages - maxVisiblePages + 1);
+  int endPage = Math.Min(totalPages, startPage + maxVisiblePages - 1);
+
+  // Ajuste si estamos cerca del final
+  if (endPage - startPage < maxVisiblePages - 1) startPage = Math.Max(1, endPage - maxVisiblePages + 1);
+
+  // Filtros actuales (para mantener en la paginación)
+  var speciesList = ViewBag.SpeciesList as IEnumerable<string> ?? Enumerable.Empty<string>();
+  var nameFilter = ViewBag.NameFilter as string ?? "";
+  var speciesFilter = ViewBag.SpeciesFilter as string ?? "";
+}
+<form id="filters" class="row g-2 mb-3" method="get">
+  <div class="col-auto">
+    <input name="name" value="@nameFilter" placeholder="Nombre" class="form-control" />
+  </div>
+  <div class="col-auto">
+    <select name="species" class="form-select">
+      <option value="">-- Especie --</option>
+      @foreach (var s in speciesList)
+      {
+        <option value="@s" selected="@(s == speciesFilter ? "selected" : null)">@s</option>
+      }
+    </select>
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-primary">Filtrar</button>
+  </div>
+  <div class="col-auto">
+    <a class="btn btn-success" id="exportBtn">Exportar a Excel</a>
+  </div>
+  <div class="col-auto">
+    <button type="button" class="btn btn-secondary" id="emailBtn">Enviar por correo</button>
+  </div>
+</form>
+
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Imagen</th>
+      <th>Nombre</th>
+      <th>Especie</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    @foreach (var p in Model)
+    {
+      <tr>
+        <td><img src="@p.ImageUrl" width="64" /></td>
+        <td>@p.Name</td>
+        <td>@p.SpeciesName</td>
+        <td>
+          <button class="btn btn-sm btn-info detailsBtn" data-name="@p.Name">Detalles</button>
+        </td>
+      </tr>
+    }
+  </tbody>
+</table>
+
+<nav aria-label="Paginación de Pokémon">
+  <ul class="pagination justify-content-center">
+
+    <!-- Botón "Anterior" -->
+    <li class="page-item @(page == 1 ? "disabled" : "")">
+      <a class="page-link" href="?page=@(page - 1)&pageSize=@pageSize&name=@nameFilter&species=@speciesFilter"
+        aria-label="Anterior">
+        <span aria-hidden="true">&laquo;</span>
+      </a>
+    </li>
+
+    <!-- Mostrar primera página y puntos si estamos lejos del inicio -->
+    @if (startPage > 1)
+    {
+      <li class="page-item">
+        <a class="page-link" href="?page=1&pageSize=@pageSize&name=@nameFilter&species=@speciesFilter">1</a>
+      </li>
+      @if (startPage > 2)
+      {
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+      }
+    }
+
+    <!-- Páginas visibles -->
+    @for (int i = startPage; i <= endPage; i++)
+    {
+      <li class="page-item @(i == page ? "active" : "")">
+        <a class="page-link" href="?page=@i&pageSize=@pageSize&name=@nameFilter&species=@speciesFilter">@i</a>
+      </li>
+    }
+
+    <!-- Mostrar puntos y última página si estamos lejos del final -->
+    @if (endPage < totalPages)
+    {
+      @if (endPage < totalPages - 1)
+      {
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+      }
+      <li class="page-item">
+        <a class="page-link"
+          href="?page=@totalPages&pageSize=@pageSize&name=@nameFilter&species=@speciesFilter">@totalPages</a>
+      </li>
+    }
+
+    <!-- Botón "Siguiente" -->
+    <li class="page-item @(page == totalPages ? "disabled" : "")">
+      <a class="page-link" href="?page=@(page + 1)&pageSize=@pageSize&name=@nameFilter&species=@speciesFilter"
+        aria-label="Siguiente">
+        <span aria-hidden="true">&raquo;</span>
+      </a>
+    </li>
+
+  </ul>
+</nav>
+
+<!-- Modal -->
+<div class="modal fade" id="detailsModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-body" id="detailsBody"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  $(function () {
+    $('#exportBtn').on('click', function () {
+      var q = $('#filters').serialize();
+      window.location = '/Pokemon/ExportExcel?' + q;
+    });
+
+    $('.detailsBtn').on('click', function () {
+      var name = $(this).data('name');
+      $('#detailsBody').html('Cargando...');
+      $('#detailsModal').modal('show');
+      $.get('/Pokemon/Details', { name: name }).done(function (html) { $('#detailsBody').html(html); });
+    });
+
+    $('#emailBtn').on('click', function () {
+      var to = prompt('Correo destinatario:');
+      if (!to) return;
+      var q = $('#filters').serialize();
+      $.post('/Pokemon/SendEmail?' + q, { toEmail: to }).done(function (r) { alert('Enviado'); }).fail(function () { alert('Error enviando'); });
+    });
+  });
+</script>
